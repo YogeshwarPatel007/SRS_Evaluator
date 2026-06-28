@@ -1,0 +1,20 @@
+{
+  "name": "srs-evaluator",
+  "version": "1.0.0",
+  "description": "Automated SRS Generation & Evaluation System",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --watch --env-file=.env src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "groq-sdk": "^0.9.0",
+    "cors": "^2.8.5",
+    "@xenova/transformers": "^2.17.2",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.7.2"
+  }
+}

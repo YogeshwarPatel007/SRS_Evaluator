@@ -1,0 +1,42 @@
+{
+  "title": "Hospital Appointment Management System",
+  "domain": "healthcare",
+  "sections": {
+    "functional_requirements": [
+      "The system shall allow patients to register and create a personal profile with medical history.",
+      "The system shall allow patients to search for available doctors by specialization, date, and time.",
+      "The system shall allow patients to book, reschedule, and cancel appointments online.",
+      "The system shall allow doctors to view their appointment schedules for the current and upcoming week.",
+      "The system shall allow doctors to update appointment status as completed, cancelled, or no-show.",
+      "The system shall allow administrators to manage doctor profiles including availability and specialization.",
+      "The system shall send automated appointment reminders to patients 24 hours before their appointment.",
+      "The system shall generate daily appointment reports for hospital management."
+    ],
+    "performance_requirements": [
+      "The system shall handle a minimum of 1000 concurrent appointment booking requests without data inconsistency.",
+      "The system shall complete appointment booking transactions within 3 seconds under peak load."
+    ],
+    "design_constraints": [
+      "The system shall comply with HIPAA regulations for patient data privacy and security.",
+      "The system shall be accessible via web browsers and a dedicated mobile application.",
+      "All patient data shall be stored in an encrypted database with AES-256 encryption.",
+      "The system shall maintain an audit trail of all data access and modifications."
+    ],
+    "external_interfaces": [
+      "The system shall integrate with the hospital's existing Electronic Health Record (EHR) system via HL7 FHIR API.",
+      "The system shall integrate with an SMS gateway to send appointment reminders to patients.",
+      "The system shall integrate with a payment gateway for consultation fee collection."
+    ],
+    "security_requirements": [
+      "All patient data shall be encrypted at rest using AES-256 and in transit using TLS 1.3.",
+      "The system shall implement multi-factor authentication for doctor and administrator accounts.",
+      "Patient records shall only be accessible to the assigned doctor and authorized administrative staff.",
+      "The system shall conduct automated security vulnerability scans monthly and log all detected threats."
+    ],
+    "use_cases": [
+      "Actor: Patient. Purpose: Book an appointment. Flow: Patient logs in, searches doctor by specialty, selects available slot, confirms booking, receives confirmation SMS.",
+      "Actor: Doctor. Purpose: View daily schedule. Flow: Doctor logs in, navigates to schedule view, sees all appointments for the day with patient details.",
+      "Actor: Administrator. Purpose: Generate appointment report. Flow: Admin logs in, selects report type and date range, system generates PDF report."
+    ]
+  }
+}

@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRS Evaluator</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2d3148;
+    --primary: #6c63ff; --success: #22c55e; --warn: #f59e0b; --danger: #ef4444;
+    --text: #e2e8f0; --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header span { background: var(--primary); color: white; font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+  /* Steps */
+  .steps { display: flex; gap: 8px; margin-bottom: 32px; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); font-size: 0.82rem; color: var(--muted); }
+  .step.active { border-color: var(--primary); color: var(--text); }
+  .step.done { border-color: var(--success); color: var(--success); }
+  .step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
+  .step.active .step-num { background: var(--primary); }
+  .step.done .step-num { background: var(--success); color: white; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  /* Form elements */
+  label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
+  textarea, select, input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 10px 12px; font-size: 0.9rem; font-family: inherit;
+    transition: border-color 0.2s;
+  }
+  textarea:focus, select:focus, input:focus { outline: none; border-color: var(--primary); }
+  textarea { resize: vertical; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* Buttons */
+  .btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: 600; font-size: 0.88rem; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: #5a52e0; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-success { background: var(--success); color: white; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .kpi-val { font-size: 1.6rem; font-weight: 800; color: var(--primary); }
+  .kpi-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { background: var(--bg); color: var(--muted); text-align: left; padding: 10px 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(108,99,255,0.05); }
+
+  /* Badge */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+  .badge-green { background: rgba(34,197,94,0.15); color: var(--success); }
+  .badge-yellow { background: rgba(245,158,11,0.15); color: var(--warn); }
+  .badge-red { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+  /* Progress */
+  .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.5s ease; }
+
+  /* Charts grid */
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .chart-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .chart-box h3 { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; }
+
+  /* Section diff */
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .diff-col h4 { font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; }
+  .diff-col ol { padding-left: 18px; }
+  .diff-col li { font-size: 0.83rem; line-height: 1.6; margin-bottom: 6px; }
+
+  /* Status */
+  .status { padding: 12px 16px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .status-info { background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.3); color: #a78bfa; }
+  .status-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--success); }
+  .status-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--danger); }
+
+  /* Section list */
+  .section-list { display: flex; flex-direction: column; gap: 8px; }
+  .section-item { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+  .section-item summary { cursor: pointer; font-size: 0.88rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center; list-style: none; }
+  .section-item summary::-webkit-details-marker { display: none; }
+  .section-item ol { padding-left: 18px; margin-top: 10px; }
+  .section-item li { font-size: 0.82rem; line-height: 1.6; margin-bottom: 4px; color: var(--muted); }
+
+  /* Spinner */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 8px 16px; font-size: 0.88rem; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); transition: all 0.2s; }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Heatmap */
+  .heatmap { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .heatmap th { padding: 8px; text-align: center; color: var(--muted); font-weight: 600; }
+  .heatmap td { padding: 8px; text-align: center; border-radius: 4px; font-weight: 600; }
+
+
+  /* Strategy cards */
+  .strategy-opt input { display:none; }
+  .strategy-card { border:1px solid var(--border); border-radius:8px; padding:10px; cursor:pointer; transition:all 0.2s; text-align:center; }
+  .strategy-opt input:checked + .strategy-card,
+  .strategy-card.active-strategy { border-color:var(--primary); background:rgba(108,99,255,0.1); }
+  .strategy-icon { font-size:1.4rem; margin-bottom:4px; }
+  .strategy-name { font-size:0.82rem; font-weight:600; }
+  .strategy-desc { font-size:0.72rem; color:var(--muted); margin-top:2px; }
+
+  /* Weight sliders */
+  .weight-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:0.8rem; }
+  .weight-row span:first-child { min-width:110px; color:var(--muted); }
+  .weight-row input[type=range] { flex:1; accent-color:var(--primary); }
+  .wval { min-width:36px; text-align:right; font-weight:700; color:var(--primary); font-size:0.8rem; }
+  select option { background: var(--surface); }
+  .gap-8 { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mt-12 { margin-top: 12px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>📋</div>
+  <h1>SRS Evaluator</h1>
+  <span>MTech Research Project</span>
+</header>
+
+<div class="container">
+
+  <!-- Pipeline Steps Indicator -->
+  <div class="steps" id="stepsBar">
+    <div class="step active" id="step1"><div class="step-num">1</div> Describe Project</div>
+    <div class="step" id="step2"><div class="step-num">2</div> Generate SRS</div>
+    <div class="step" id="step3"><div class="step-num">3</div> Load Expert SRS</div>
+    <div class="step" id="step4"><div class="step-num">4</div> Evaluate</div>
+    <div class="step" id="step5"><div class="step-num">5</div> Results</div>
+  </div>
+
+  <!-- STEP 1: Input -->
+  <div class="card">
+    <h2>📝 Step 1 — Project Description</h2>
+    <div class="row" style="margin-bottom:14px">
+      <div>
+        <label>Project Description</label>
+        <textarea id="description" rows="5" placeholder="Describe your software project in detail...&#10;&#10;Example: A university student club management portal where administrators can create clubs, assign coordinators, and students can browse and register for club events..."></textarea>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label>Domain</label>
+          <select id="domain">
+            <option value="web_application">🌐 Web Application</option>
+            <option value="healthcare">🏥 Healthcare</option>
+            <option value="fintech">💰 Fintech</option>
+            <option value="embedded">⚙️ Embedded System</option>
+          </select>
+        </div>
+        <div>
+          <label>Expert SRS Source</label>
+          <select id="expertSource" onchange="toggleExpertSource()">
+            <option value="preloaded">📂 Use Preloaded</option>
+            <option value="upload">📤 Upload PDF / DOCX / TXT / JSON</option>
+          </select>
+        </div>
+        <div id="preloadedDiv">
+          <label>Select Expert SRS</label>
+          <select id="expertFile"><option>Loading...</option></select>
+        </div>
+        <div id="uploadDiv" class="hidden">
+          <label>Upload Expert SRS (PDF / DOCX / TXT / JSON)</label>
+          <input type="file" id="expertUpload" accept=".pdf,.docx,.txt,.json" onchange="handleUpload(event)"><div id="uploadStatus" style="font-size:0.78rem;margin-top:6px;color:var(--muted)"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Gap 3: Prompt Strategy Comparison -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <label style="margin:0">🧠 Prompt Strategies <span style="color:var(--muted);font-size:0.75rem">(Gap 3 — select strategies to compare)</span></label>
+        <button class="btn btn-outline" style="padding:3px 10px;font-size:0.75rem" onclick="selectAllStrategies()">Select All</button>
+        <button class="btn btn-outline" style="padding:3px 10px;font-size:0.75rem" onclick="selectOneStrategy()">Select Standard Only</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <label class="strategy-opt">
+          <input type="checkbox" name="strategy" value="standard" checked id="chk-standard">
+          <div class="strategy-card active-strategy" id="sc-standard">
+            <div class="strategy-icon">📄</div>
+            <div class="strategy-name">Standard</div>
+            <div class="strategy-desc">Direct instruction (paper's method)</div>
+          </div>
+        </label>
+        <label class="strategy-opt">
+          <input type="checkbox" name="strategy" value="cot" id="chk-cot">
+          <div class="strategy-card" id="sc-cot">
+            <div class="strategy-icon">🧠</div>
+            <div class="strategy-name">Chain-of-Thought</div>
+            <div class="strategy-desc">Think step by step</div>
+          </div>
+        </label>
+        <label class="strategy-opt">
+          <input type="checkbox" name="strategy" value="fewshot" id="chk-fewshot">
+          <div class="strategy-card" id="sc-fewshot">
+            <div class="strategy-icon">📚</div>
+            <div class="strategy-name">Few-Shot</div>
+            <div class="strategy-desc">Learns from example</div>
+          </div>
+        </label>
+        <label class="strategy-opt">
+          <input type="checkbox" name="strategy" value="role" id="chk-role">
+          <div class="strategy-card" id="sc-role">
+            <div class="strategy-icon">👨‍💼</div>
+            <div class="strategy-name">Role Prompting</div>
+            <div class="strategy-desc">Senior architect persona</div>
+          </div>
+        </label>
+      </div>
+      <div style="font-size:0.75rem;color:var(--muted);margin-top:6px">
+        ℹ️ Select multiple strategies to run them all and compare results side by side. Single strategy = one result.
+      </div>
+    </div>
+
+    <!-- Gap 1 & 7: Custom Weights -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <label style="margin:0">⚖️ Metric Weights <span style="color:var(--muted);font-size:0.75rem">(Gap 1 & 7 — paper never weighted metrics)</span></label>
+        <button class="btn btn-outline" style="padding:3px 10px;font-size:0.75rem" onclick="toggleWeights()">Customize</button>
+        <button class="btn btn-outline" style="padding:3px 10px;font-size:0.75rem" onclick="resetWeights()">Reset to Domain</button>
+      </div>
+      <div id="weightsPanel" class="hidden" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <div style="font-size:0.8rem;font-weight:600;color:var(--primary);margin-bottom:8px">Pipeline Metric Weights</div>
+            <div class="weight-row"><span>Semantic Similarity</span><input type="range" id="w-semantic" min="0" max="100" value="30" oninput="updateWeightDisplay(this,'wv-semantic')"><span id="wv-semantic" class="wval">30%</span></div>
+            <div class="weight-row"><span>ROUGE-L</span><input type="range" id="w-rouge" min="0" max="100" value="20" oninput="updateWeightDisplay(this,'wv-rouge')"><span id="wv-rouge" class="wval">20%</span></div>
+            <div class="weight-row"><span>Coverage %</span><input type="range" id="w-coverage" min="0" max="100" value="25" oninput="updateWeightDisplay(this,'wv-coverage')"><span id="wv-coverage" class="wval">25%</span></div>
+            <div class="weight-row"><span>LLM Quality</span><input type="range" id="w-quality" min="0" max="100" value="25" oninput="updateWeightDisplay(this,'wv-quality')"><span id="wv-quality" class="wval">25%</span></div>
+            <div id="metric-sum-status" style="font-size:0.75rem;margin-top:6px;color:var(--success)">✅ Sum: 100%</div>
+          </div>
+          <div>
+            <div style="font-size:0.8rem;font-weight:600;color:var(--primary);margin-bottom:8px">LLM Judge Criteria Weights <span style="font-size:0.7rem;color:var(--muted)">(Gap 1 — paper ignored this entirely)</span></div>
+            <div class="weight-row"><span>Unambiguous</span><input type="range" id="w-unambiguous" min="0" max="100" value="25" oninput="updateWeightDisplay(this,'wv-unambiguous')"><span id="wv-unambiguous" class="wval">25%</span></div>
+            <div class="weight-row"><span>Understandable</span><input type="range" id="w-understandable" min="0" max="100" value="30" oninput="updateWeightDisplay(this,'wv-understandable')"><span id="wv-understandable" class="wval">30%</span></div>
+            <div class="weight-row"><span>Correct</span><input type="range" id="w-correct" min="0" max="100" value="25" oninput="updateWeightDisplay(this,'wv-correct')"><span id="wv-correct" class="wval">25%</span></div>
+            <div class="weight-row"><span>Verifiable</span><input type="range" id="w-verifiable" min="0" max="100" value="20" oninput="updateWeightDisplay(this,'wv-verifiable')"><span id="wv-verifiable" class="wval">20%</span></div>
+            <div id="criteria-sum-status" style="font-size:0.75rem;margin-top:6px;color:var(--success)">✅ Sum: 100%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="gap-8">
+      <button class="btn btn-primary" onclick="generateSRS()" id="genBtn">
+        🤖 Generate SRS
+      </button>
+      <button class="btn btn-outline" onclick="runFullPipeline()" id="pipelineBtn">
+        ⚡ Run Full Pipeline
+      </button>
+    </div>
+  </div>
+
+  <!-- Status messages -->
+  <div id="statusMsg" class="hidden"></div>
+
+  <!-- STEP 2: Generated SRS -->
+  <div class="card hidden" id="generatedCard">
+    <h2>🤖 Step 2 — Generated SRS</h2>
+    <div class="section-list" id="generatedSections"></div>
+    <div class="mt-12">
+      <button class="btn btn-primary" onclick="runEvaluation()" id="evalBtn">
+        ⚖️ Step 4 — Run Evaluation
+      </button>
+    </div>
+  </div>
+
+  <!-- Gap 4: Refinement Panel -->
+  <div class="card hidden" id="refineCard">
+    <h2>🔄 Gap 4 — Refinement Loop <span style="font-size:0.75rem;font-weight:400;color:var(--muted)">(paper had no feedback loop)</span></h2>
+    <p style="font-size:0.83rem;color:var(--muted);margin-bottom:14px">Select a weak section and refine it based on evaluation feedback. Re-evaluate after refinement to see improvement.</p>
+    <div class="row" style="margin-bottom:12px">
+      <div>
+        <label>Select Section to Refine</label>
+        <select id="refineSectionSelect">
+          <option value="functional_requirements">Functional Requirements</option>
+          <option value="performance_requirements">Performance Requirements</option>
+          <option value="design_constraints">Design Constraints</option>
+          <option value="external_interfaces">External Interfaces</option>
+          <option value="security_requirements">Security Requirements</option>
+          <option value="use_cases">Use Cases</option>
+        </select>
+      </div>
+      <div>
+        <label>Feedback / Issues to Fix</label>
+        <textarea id="refineFeedback" rows="3" placeholder="e.g. Requirements are too vague, missing specific numbers. Performance requirements lack measurable thresholds..."></textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="runRefinement()" id="refineBtn">🔄 Refine This Section</button>
+    <div id="refineResult" class="hidden" style="margin-top:14px">
+      <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px">✅ Refined Requirements:</div>
+      <ol id="refinedList" style="padding-left:18px;font-size:0.83rem;line-height:1.8"></ol>
+      <button class="btn btn-outline" style="margin-top:10px" onclick="applyRefinement()">✅ Apply & Re-evaluate</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Expert SRS Preview -->
+  <div class="card hidden" id="expertCard">
+    <h2>👨‍💼 Step 3 — Expert SRS (Ground Truth)</h2>
+    <div class="section-list" id="expertSections"></div>
+  </div>
+
+  <!-- STEP 5: Results -->
+  <div id="resultsDiv" class="hidden">
+
+    <div class="card">
+      <h2>📊 Step 5 — Metrics Matrix & Results</h2>
+
+      <!-- KPI Cards -->
+      <div class="kpis" id="kpiCards"></div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('matrix')">📋 Matrix</div>
+        <div class="tab" onclick="switchTab('charts')">📈 Charts</div>
+        <div class="tab" onclick="switchTab('heatmap')">🔥 LLM Judge</div>
+        <div class="tab" onclick="switchTab('diff')">🔍 Side-by-Side</div>
+      </div>
+
+      <!-- Matrix Tab -->
+      <div class="tab-panel active" id="tab-matrix">
+        <table id="matrixTable">
+          <thead>
+            <tr>
+              <th>Section</th>
+              <th>Semantic Sim</th>
+              <th>ROUGE-L</th>
+              <th>Coverage %</th>
+              <th>LLM Quality /5</th>
+              <th>Weighted Score</th>
+              <th>Grade</th>
+            </tr>
+          </thead>
+          <tbody id="matrixBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Charts Tab -->
+      <div class="tab-panel" id="tab-charts">
+        <div class="charts">
+          <div class="chart-box">
+            <h3>Weighted Score by Section</h3>
+            <canvas id="barChart" height="200"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>Metric Profile (Radar)</h3>
+            <canvas id="radarChart" height="200"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Heatmap Tab -->
+      <div class="tab-panel" id="tab-heatmap">
+        <h3 style="font-size:0.9rem;color:var(--muted);margin-bottom:16px">LLM Judge Criteria per Section (1-5 scale)</h3>
+        <table class="heatmap" id="heatmapTable"></table>
+      </div>
+
+      <!-- Diff Tab -->
+      <div class="tab-panel" id="tab-diff">
+        <div style="margin-bottom:14px">
+          <label>Select Section</label>
+          <select id="diffSection" onchange="renderDiff()" style="width:auto;min-width:220px"></select>
+        </div>
+        <div class="diff-grid" id="diffContent"></div>
+      </div>
+    </div>
+
+    <!-- Download -->
+    <div class="card">
+      <h2>💾 Export</h2>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">📄 PDF Reports</div>
+          <div class="gap-8">
+            <button class="btn btn-primary" onclick="downloadPDF('full')">📄 Full Evaluation Report (PDF)</button>
+            <button class="btn btn-outline" onclick="downloadPDF('generated')">📄 Generated SRS (PDF)</button>
+            <button class="btn btn-outline" onclick="downloadPDF('expert')">📄 Expert SRS (PDF)</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">🗂 JSON Data</div>
+          <div class="gap-8">
+            <button class="btn btn-outline" onclick="downloadJSON('result')">📥 Results JSON</button>
+            <button class="btn btn-outline" onclick="downloadJSON('generated')">📥 Generated SRS JSON</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Strategy Comparison Results -->
+  <div id="comparisonDiv" class="hidden">
+    <div class="card">
+      <h2>📊 Strategy Comparison — All Results</h2>
+      <p style="font-size:0.83rem;color:var(--muted);margin-bottom:16px">
+        Each strategy generated a separate SRS and was evaluated against the same expert SRS. 
+        This directly addresses Gap 3 — the paper only tested one prompt approach.
+      </p>
+
+      <!-- Summary comparison table -->
+      <div style="margin-bottom:20px">
+        <h3 style="font-size:0.9rem;color:var(--muted);margin-bottom:10px">🏆 Overall Score Comparison</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Overall Score</th>
+              <th>Semantic Sim</th>
+              <th>ROUGE-L</th>
+              <th>Coverage %</th>
+              <th>LLM Quality</th>
+              <th>Winner</th>
+            </tr>
+          </thead>
+          <tbody id="compSummaryBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Per-strategy detailed matrices in tabs -->
+      <div class="tabs" id="compTabs"></div>
+      <div id="compPanels"></div>
+
+      <!-- Comparison bar chart -->
+      <div style="margin-top:20px">
+        <h3 style="font-size:0.9rem;color:var(--muted);margin-bottom:10px">📈 Score Comparison Chart</h3>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px">
+          <canvas id="compBarChart" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+const API = "http://localhost:3000/api";
+let state = { generated: null, expert: null, result: null, uploadedExpert: null };
+let barChartInst = null, radarChartInst = null;
+
+// ── Init ──────────────────────────────────────────────────────
+async function init() {
+  try {
+    const r = await fetch(`${API}/expert-srs`);
+    const data = await r.json();
+    const sel = document.getElementById("expertFile");
+    sel.innerHTML = data.options.map(o =>
+      `<option value="${o.filename}">${o.title} (${o.domain})</option>`
+    ).join("");
+  } catch {
+    showStatus("⚠️ Cannot reach backend. Make sure server is running on port 3000.", "error");
+  }
+}
+init();
+
+function toggleExpertSource() {
+  const src = document.getElementById("expertSource").value;
+  document.getElementById("preloadedDiv").classList.toggle("hidden", src !== "preloaded");
+  document.getElementById("uploadDiv").classList.toggle("hidden", src !== "upload");
+}
+
+async function handleUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const ext = file.name.split(".").pop().toLowerCase();
+  const statusEl = document.getElementById("uploadStatus");
+  statusEl.textContent = `⏳ Parsing ${file.name}...`;
+
+  // For JSON — parse client side (fast)
+  if (ext === "json") {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        state.uploadedExpert = JSON.parse(ev.target.result);
+        const total = Object.values(state.uploadedExpert.sections || {})
+          .reduce((s, a) => s + a.length, 0);
+        statusEl.textContent = `✅ Loaded JSON — ${total} requirements found`;
+        showStatus("✅ Expert SRS (JSON) loaded successfully", "success");
+      } catch {
+        statusEl.textContent = "❌ Invalid JSON";
+        showStatus("❌ Invalid JSON file", "error");
+      }
+    };
+    reader.readAsText(file);
+    return;
+  }
+
+  // For PDF / DOCX / TXT — send to server parser
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    statusEl.textContent = `⏳ Uploading & parsing ${ext.toUpperCase()}...`;
+
+    const r = await fetch(`${API}/upload-expert`, {
+      method: "POST",
+      body: formData
+    });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error);
+
+    state.uploadedExpert = data.srs;
+    const stats = data.stats.sections_found
+      .map(s => `${s.section.replace("_"," ")}: ${s.count}`)
+      .join(", ");
+    statusEl.innerHTML = `✅ Parsed — ${data.stats.total_requirements} requirements<br>
+      <span style="font-size:0.74rem">${stats}</span>`;
+    showStatus(`✅ Expert SRS parsed from ${ext.toUpperCase()} successfully`, "success");
+  } catch (err) {
+    statusEl.textContent = `❌ Parse failed: ${err.message}`;
+    showStatus(`❌ Upload failed: ${err.message}`, "error");
+  }
+}
+
+// ── Step 2: Generate SRS ──────────────────────────────────────
+async function generateSRS() {
+  const desc = document.getElementById("description").value.trim();
+  if (!desc) { showStatus("Please enter a project description.", "error"); return; }
+
+  const strategies = getSelectedStrategies();
+  if (strategies.length === 0) { showStatus("Select at least one prompt strategy.", "error"); return; }
+
+  const multiMode = strategies.length > 1;
+  setLoading("genBtn", true, multiMode ? `Running ${strategies.length} strategies...` : "Generating...");
+  showStatus(multiMode
+    ? `🧠 Running ${strategies.length} strategies and comparing results...`
+    : "🤖 Generating SRS...", "info");
+  setStep(2);
+
+  try {
+    // Load expert SRS first (needed for multi-strategy comparison)
+    const expertLoaded = await loadExpertPreview();
+    if (!expertLoaded) {
+      setLoading("genBtn", false, "🤖 Generate SRS");
+      return;
+    }
+
+    if (multiMode) {
+      // Multi-strategy: run all, compare, use best for main display
+      const compResult = await runStrategyComparison(
+        desc,
+        document.getElementById("domain").value,
+        state.expert,
+        getCustomWeights()
+      );
+      if (!compResult) return;
+
+      state.generated = compResult.bestSRS;
+      state.result = compResult.bestResult;
+
+      renderSRSSections(compResult.bestSRS.sections, "generatedSections");
+      document.getElementById("generatedCard").classList.remove("hidden");
+      document.getElementById("refineCard").classList.remove("hidden");
+      renderResults(compResult.bestResult);
+
+      showStatus(`✅ All strategies compared! Best: ${compResult.bestStrategy}`, "success");
+      setStep(2, true); setStep(4, true); setStep(5, true);
+
+    } else {
+      // Single strategy — normal flow
+      const r = await fetch(`${API}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: desc, domain: document.getElementById("domain").value, strategy: strategies[0] })
+      });
+      const data = await r.json();
+      if (!data.success) throw new Error(data.error);
+
+      state.generated = data.srs;
+      renderSRSSections(data.srs.sections, "generatedSections");
+      document.getElementById("generatedCard").classList.remove("hidden");
+      document.getElementById("refineCard").classList.remove("hidden");
+      showStatus("✅ SRS generated successfully!", "success");
+      setStep(2, true);
+    }
+  } catch (e) {
+    showStatus(`❌ Error: ${e.message}`, "error");
+  } finally {
+    setLoading("genBtn", false, "🤖 Generate SRS");
+  }
+}
+
+async function loadExpertPreview() {
+  setStep(3);
+  let expertData;
+
+  if (document.getElementById("expertSource").value === "upload") {
+    if (!state.uploadedExpert) {
+      showStatus("⚠️ Please upload an expert SRS file first.", "error");
+      return false;
+    }
+    expertData = state.uploadedExpert;
+  } else {
+    const filename = document.getElementById("expertFile").value;
+    if (!filename) { showStatus("No expert SRS file selected.", "error"); return false; }
+    const r = await fetch(`${API}/expert-srs/${filename}`);
+    const data = await r.json();
+    if (!data.success && !data.srs) { showStatus("Failed to load expert SRS.", "error"); return false; }
+    expertData = data.srs;
+  }
+
+  if (!expertData || !expertData.sections) {
+    showStatus("Expert SRS has no sections.", "error");
+    return false;
+  }
+
+  state.expert = expertData;
+  renderSRSSections(expertData.sections, "expertSections");
+  document.getElementById("expertCard").classList.remove("hidden");
+  setStep(3, true);
+  return true;
+}
+
+// ── Step 4: Evaluate ──────────────────────────────────────────
+async function runEvaluation() {
+  if (!state.generated || !state.expert) {
+    showStatus("Generate SRS and load expert SRS first.", "error"); return;
+  }
+
+  setLoading("evalBtn", true, "Evaluating...");
+  showStatus("⚖️ Running evaluation pipeline: semantic similarity → ROUGE-L → coverage → LLM judge...", "info");
+  setStep(4);
+
+  try {
+    const r = await fetch(`${API}/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        generated_srs: state.generated,
+        expert_srs: state.expert,
+        domain: document.getElementById("domain").value,
+        custom_weights: getCustomWeights()
+      })
+    });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error);
+
+    state.result = data.result;
+    renderResults(data.result);
+    showStatus("✅ Evaluation complete!", "success");
+    setStep(4, true); setStep(5, true);
+  } catch (e) {
+    showStatus(`❌ Error: ${e.message}`, "error");
+  } finally {
+    setLoading("evalBtn", false, "⚖️ Step 4 — Run Evaluation");
+  }
+}
+
+// ── Full pipeline ─────────────────────────────────────────────
+async function runFullPipeline() {
+  const desc = document.getElementById("description").value.trim();
+  if (!desc) { showStatus("Please enter a project description.", "error"); return; }
+
+  const src = document.getElementById("expertSource").value;
+
+  // If upload mode, must have uploaded first
+  if (src === "upload" && !state.uploadedExpert) {
+    showStatus("⚠️ Please upload an expert SRS file first, then click Run Full Pipeline.", "error");
+    return;
+  }
+
+  setLoading("pipelineBtn", true, "Running pipeline...");
+  showStatus("⚡ Running full pipeline: Generate → Load Expert → Evaluate...", "info");
+
+  try {
+    // If uploaded expert SRS — generate + compare separately
+    if (src === "upload" && state.uploadedExpert) {
+      // Step 2: generate
+      setStep(2);
+      const genR = await fetch(`${API}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: desc, domain: document.getElementById("domain").value, strategy: getStrategy() })
+      });
+      const genData = await genR.json();
+      if (!genData.success) throw new Error(genData.error);
+      state.generated = genData.srs;
+      setStep(2, true);
+
+      // Step 3: use uploaded expert
+      state.expert = state.uploadedExpert;
+      setStep(3, true);
+
+      // Steps 4-7: compare
+      setStep(4);
+      const cmpR = await fetch(`${API}/compare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          generated_srs: state.generated,
+          expert_srs: state.expert,
+          domain: document.getElementById("domain").value
+        })
+      });
+      const cmpData = await cmpR.json();
+      if (!cmpData.success) throw new Error(cmpData.error);
+      state.result = cmpData.result;
+
+      renderSRSSections(state.generated.sections, "generatedSections");
+      document.getElementById("generatedCard").classList.remove("hidden");
+      renderSRSSections(state.expert.sections, "expertSections");
+      document.getElementById("expertCard").classList.remove("hidden");
+      renderResults(state.result);
+
+    } else {
+      // Preloaded expert — use single /pipeline endpoint
+      const filename = document.getElementById("expertFile").value;
+      const r = await fetch(`${API}/pipeline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: desc,
+          domain: document.getElementById("domain").value,
+          expert_filename: filename,
+          strategy: getStrategy(),
+          custom_weights: getCustomWeights()
+        })
+      });
+      const data = await r.json();
+      if (!data.success) throw new Error(data.error);
+
+      state.generated = data.generated_srs;
+      state.expert = data.expert_srs;
+      state.result = data.result;
+
+      renderSRSSections(data.generated_srs.sections, "generatedSections");
+      document.getElementById("generatedCard").classList.remove("hidden");
+      document.getElementById("refineCard").classList.remove("hidden");
+      renderSRSSections(data.expert_srs.sections, "expertSections");
+      document.getElementById("expertCard").classList.remove("hidden");
+      renderResults(data.result);
+    }
+
+    showStatus("✅ Full pipeline complete!", "success");
+    [1,2,3,4,5].forEach(i => setStep(i, true));
+  } catch (e) {
+    showStatus(`❌ Error: ${e.message}`, "error");
+  } finally {
+    setLoading("pipelineBtn", false, "⚡ Run Full Pipeline");
+  }
+}
+
+// ── Render helpers ────────────────────────────────────────────
+function renderSRSSections(sections, containerId) {
+  const labels = {
+    functional_requirements: "Functional Requirements",
+    performance_requirements: "Performance Requirements",
+    design_constraints: "Design Constraints",
+    external_interfaces: "External Interfaces",
+    security_requirements: "Security Requirements",
+    use_cases: "Use Cases"
+  };
+  const container = document.getElementById(containerId);
+  container.innerHTML = Object.entries(sections).map(([key, reqs]) => `
+    <details class="section-item">
+      <summary>
+        <span>${labels[key] || key} <span style="color:var(--muted);font-weight:400">(${reqs.length} requirements)</span></span>
+        <span style="color:var(--muted)">▼</span>
+      </summary>
+      <ol>${reqs.map(r => `<li>${r}</li>`).join("")}</ol>
+    </details>
+  `).join("");
+}
+
+function renderResults(result) {
+  document.getElementById("resultsDiv").classList.remove("hidden");
+
+  // KPI cards
+  document.getElementById("kpiCards").innerHTML = [
+    ["🏆 Overall Score", result.overall_weighted_score.toFixed(1) + "%"],
+    ["🧠 Semantic", result.overall_semantic.toFixed(3)],
+    ["📝 ROUGE-L", result.overall_rouge_l.toFixed(3)],
+    ["📦 Coverage", result.overall_coverage.toFixed(1) + "%"],
+    ["⭐ LLM Quality", result.overall_quality.toFixed(2) + "/5"],
+  ].map(([label, val]) => `
+    <div class="kpi"><div class="kpi-val">${val}</div><div class="kpi-label">${label}</div></div>
+  `).join("");
+
+  // Matrix table
+  const badge = (s) => s >= 75
+    ? `<span class="badge badge-green">🟢 ${s.toFixed(1)}%</span>`
+    : s >= 50
+      ? `<span class="badge badge-yellow">🟡 ${s.toFixed(1)}%</span>`
+      : `<span class="badge badge-red">🔴 ${s.toFixed(1)}%</span>`;
+
+  document.getElementById("matrixBody").innerHTML = result.section_scores.map(s => `
+    <tr>
+      <td><strong>${s.section}</strong></td>
+      <td>${s.semantic_similarity.toFixed(3)}</td>
+      <td>${s.rouge_l.toFixed(3)}</td>
+      <td>${s.coverage_percent.toFixed(1)}%</td>
+      <td>${s.llm_quality_score.toFixed(2)}</td>
+      <td>${badge(s.weighted_score)}</td>
+      <td>${s.req_count_generated} gen / ${s.req_count_expert} exp</td>
+    </tr>
+  `).join("");
+
+  renderCharts(result);
+  renderHeatmap(result);
+  renderDiffSelector(result);
+  document.getElementById("resultsDiv").scrollIntoView({ behavior: "smooth" });
+}
+
+function renderCharts(result) {
+  const sections = result.section_scores;
+  const labels = sections.map(s => s.section.replace(" Requirements","").replace(" ","<br>"));
+
+  // Bar chart
+  if (barChartInst) barChartInst.destroy();
+  barChartInst = new Chart(document.getElementById("barChart"), {
+    type: "bar",
+    data: {
+      labels: sections.map(s => s.section.split(" ")[0]),
+      datasets: [{
+        data: sections.map(s => s.weighted_score),
+        backgroundColor: sections.map(s =>
+          s.weighted_score >= 75 ? "rgba(34,197,94,0.7)"
+          : s.weighted_score >= 50 ? "rgba(245,158,11,0.7)"
+          : "rgba(239,68,68,0.7)"
+        ),
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 0, max: 100, ticks: { color: "#64748b" }, grid: { color: "#2d3148" } },
+        x: { ticks: { color: "#64748b" }, grid: { display: false } }
+      },
+      annotation: {}
+    }
+  });
+
+  // Radar chart
+  if (radarChartInst) radarChartInst.destroy();
+  radarChartInst = new Chart(document.getElementById("radarChart"), {
+    type: "radar",
+    data: {
+      labels: ["Semantic", "ROUGE-L", "Coverage", "Quality"],
+      datasets: sections.map((s, i) => ({
+        label: s.section.split(" ")[0],
+        data: [
+          s.semantic_similarity,
+          s.rouge_l,
+          s.coverage_percent / 100,
+          s.llm_quality_score / 5
+        ],
+        borderWidth: 2,
+        fill: false,
+        borderColor: `hsl(${i * 60}, 70%, 60%)`,
+        pointBackgroundColor: `hsl(${i * 60}, 70%, 60%)`,
+      }))
+    },
+    options: {
+      scales: { r: { min: 0, max: 1, ticks: { color: "#64748b", backdropColor: "transparent" }, grid: { color: "#2d3148" }, pointLabels: { color: "#e2e8f0" } } },
+      plugins: { legend: { labels: { color: "#e2e8f0", boxWidth: 12 } } }
+    }
+  });
+}
+
+function renderHeatmap(result) {
+  const criteria = ["unambiguous", "understandable", "correct", "verifiable"];
+  const heat = (v) => {
+    const r = v <= 2 ? 239 : v <= 3 ? 245 : 34;
+    const g = v <= 2 ? 68  : v <= 3 ? 158 : 197;
+    const b = v <= 2 ? 68  : v <= 3 ? 11  : 94;
+    return `background:rgba(${r},${g},${b},0.25);color:rgb(${r},${g},${b})`;
+  };
+
+  document.getElementById("heatmapTable").innerHTML = `
+    <tr>
+      <th>Section</th>
+      ${criteria.map(c => `<th>${c.charAt(0).toUpperCase()+c.slice(1)}</th>`).join("")}
+      <th>Avg Quality</th>
+    </tr>
+    ${result.section_scores.map(s => `
+      <tr>
+        <td style="text-align:left;color:var(--text)">${s.section}</td>
+        ${criteria.map(c => `<td style="${heat(s[c])}">${s[c].toFixed(2)}</td>`).join("")}
+        <td style="${heat(s.llm_quality_score)}">${s.llm_quality_score.toFixed(2)}</td>
+      </tr>
+    `).join("")}
+  `;
+}
+
+function renderDiffSelector(result) {
+  const sel = document.getElementById("diffSection");
+  sel.innerHTML = result.section_scores.map(s => `<option>${s.section}</option>`).join("");
+  renderDiff();
+}
+
+function renderDiff() {
+  if (!state.generated || !state.expert || !state.result) return;
+
+  const sectionName = document.getElementById("diffSection").value;
+  const keyMap = {
+    "Functional Requirements": "functional_requirements",
+    "Performance Requirements": "performance_requirements",
+    "Design Constraints": "design_constraints",
+    "External Interfaces": "external_interfaces",
+    "Security Requirements": "security_requirements",
+    "Use Cases": "use_cases"
+  };
+  const key = keyMap[sectionName] || "functional_requirements";
+
+  const genReqs = state.generated.sections?.[key] || [];
+  const expReqs = state.expert.sections?.[key] || [];
+
+  document.getElementById("diffContent").innerHTML = `
+    <div class="diff-col">
+      <h4>🤖 Generated SRS (${genReqs.length} requirements)</h4>
+      <ol>${genReqs.map(r => `<li>${r}</li>`).join("") || "<li style='color:var(--muted)'>No requirements generated</li>"}</ol>
+    </div>
+    <div class="diff-col">
+      <h4>👨‍💼 Expert SRS / Ground Truth (${expReqs.length} requirements)</h4>
+      <ol>${expReqs.map(r => `<li>${r}</li>`).join("") || "<li style='color:var(--muted)'>No requirements in expert SRS</li>"}</ol>
+    </div>
+  `;
+}
+
+// ── Utilities ─────────────────────────────────────────────────
+function showStatus(msg, type = "info") {
+  const el = document.getElementById("statusMsg");
+  el.className = `status status-${type}`;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+function setLoading(btnId, loading, label) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = loading;
+  btn.innerHTML = loading ? `<span class="spinner"></span> ${label}` : label;
+}
+
+function setStep(n, done = false) {
+  const el = document.getElementById(`step${n}`);
+  if (!el) return;
+  el.className = `step ${done ? "done" : "active"}`;
+  el.querySelector(".step-num").textContent = done ? "✓" : n;
+}
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((t, i) => {
+    const names = ["matrix","charts","heatmap","diff"];
+    t.classList.toggle("active", names[i] === name);
+  });
+  document.querySelectorAll(".tab-panel").forEach(p => {
+    p.classList.toggle("active", p.id === `tab-${name}`);
+  });
+}
+
+function downloadJSON(type) {
+  const data = type === "result" ? state.result : state.generated;
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = type === "result" ? "evaluation_result.json" : "generated_srs.json";
+  a.click();
+}
+
+// ── PDF Export ────────────────────────────────────────────────
+function downloadPDF(type) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  const W = 210, MARGIN = 15, LINE = 5.5;
+  const usable = W - MARGIN * 2;
+  let y = MARGIN;
+
+  const SECTION_LABELS = {
+    functional_requirements:  "Functional Requirements",
+    performance_requirements: "Performance Requirements",
+    design_constraints:       "Design Constraints",
+    external_interfaces:      "External Interfaces",
+    security_requirements:    "Security Requirements",
+    use_cases:                "Use Cases"
+  };
+
+  // ── helpers ──
+  function checkPage(needed = 10) {
+    if (y + needed > 280) { doc.addPage(); y = MARGIN; }
+  }
+
+  function heading1(text) {
+    checkPage(12);
+    doc.setFontSize(16); doc.setFont("helvetica","bold");
+    doc.setFillColor(108,99,255);
+    doc.rect(MARGIN, y-4, usable, 9, "F");
+    doc.setTextColor(255,255,255);
+    doc.text(text, MARGIN+3, y+2);
+    doc.setTextColor(30,30,30);
+    y += 12;
+  }
+
+  function heading2(text) {
+    checkPage(10);
+    doc.setFontSize(12); doc.setFont("helvetica","bold");
+    doc.setTextColor(108,99,255);
+    doc.text(text, MARGIN, y);
+    doc.setDrawColor(108,99,255);
+    doc.line(MARGIN, y+1, MARGIN+usable, y+1);
+    doc.setTextColor(30,30,30);
+    y += 8;
+  }
+
+  function heading3(text) {
+    checkPage(8);
+    doc.setFontSize(10); doc.setFont("helvetica","bold");
+    doc.setTextColor(50,50,50);
+    doc.text(text, MARGIN, y);
+    y += 6;
+  }
+
+  function bodyText(text, indent=0) {
+    doc.setFontSize(9); doc.setFont("helvetica","normal");
+    doc.setTextColor(60,60,60);
+    const lines = doc.splitTextToSize(text, usable - indent);
+    for (const line of lines) {
+      checkPage(LINE);
+      doc.text(line, MARGIN + indent, y);
+      y += LINE;
+    }
+  }
+
+  function reqItem(num, text) {
+    checkPage(LINE + 2);
+    doc.setFontSize(8.5); doc.setFont("helvetica","normal");
+    doc.setTextColor(80,80,80);
+    // bullet circle
+    doc.setFillColor(108,99,255);
+    doc.circle(MARGIN+3, y-1.2, 1, "F");
+    const lines = doc.splitTextToSize(`${num}. ${text}`, usable - 8);
+    for (let i = 0; i < lines.length; i++) {
+      checkPage(LINE);
+      doc.text(lines[i], MARGIN+7, y);
+      y += LINE;
+    }
+    y += 1;
+  }
+
+  function gap(n=4) { y += n; }
+
+  function coverPage(title, subtitle) {
+    doc.setFillColor(15,17,23);
+    doc.rect(0,0,210,297,"F");
+    // purple bar
+    doc.setFillColor(108,99,255);
+    doc.rect(0, 100, 210, 2, "F");
+    doc.rect(0, 180, 210, 2, "F");
+    // Title
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(26); doc.setFont("helvetica","bold");
+    doc.text(title, 105, 120, { align:"center" });
+    doc.setFontSize(13); doc.setFont("helvetica","normal");
+    doc.setTextColor(180,180,210);
+    doc.text(subtitle, 105, 135, { align:"center" });
+    // Meta
+    doc.setFontSize(9); doc.setTextColor(120,120,160);
+    doc.text("MTech Advanced Software Engineering", 105, 200, { align:"center" });
+    doc.text("SRS Evaluator — Automated Ground-Truth Comparison System", 105, 207, { align:"center" });
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 105, 214, { align:"center" });
+    doc.addPage();
+    y = MARGIN;
+  }
+
+  function metricRow(label, value, color) {
+    checkPage(8);
+    doc.setFontSize(9); doc.setFont("helvetica","bold");
+    doc.setTextColor(60,60,60);
+    doc.text(label, MARGIN+2, y);
+    doc.setFont("helvetica","normal");
+    doc.setTextColor(...color);
+    doc.text(String(value), MARGIN+70, y);
+    doc.setTextColor(30,30,30);
+    y += 6;
+  }
+
+  function srsSection(sections) {
+    for (const [key, reqs] of Object.entries(sections)) {
+      if (!reqs || reqs.length === 0) continue;
+      heading3(SECTION_LABELS[key] || key);
+      reqs.forEach((r, i) => reqItem(i+1, r));
+      gap(3);
+    }
+  }
+
+  // ── FULL EVALUATION REPORT ────────────────────────────────
+  if (type === "full") {
+    if (!state.result) { alert("Run evaluation first."); return; }
+    const r = state.result;
+
+    coverPage("SRS Evaluation Report", "Automated Quality Assessment");
+
+    // 1. Summary
+    heading1("1. Evaluation Summary");
+    gap(2);
+
+    const overall = r.overall_weighted_score;
+    const grade = overall >= 75 ? "Good" : overall >= 50 ? "Acceptable" : "Needs Improvement";
+    metricRow("Overall Weighted Score:", overall.toFixed(2) + "%", overall >= 75 ? [34,197,94] : overall >= 50 ? [245,158,11] : [239,68,68]);
+    metricRow("Grade:", grade, [108,99,255]);
+    metricRow("Semantic Similarity:", r.overall_semantic.toFixed(4), [60,60,60]);
+    metricRow("ROUGE-L Score:", r.overall_rouge_l.toFixed(4), [60,60,60]);
+    metricRow("Coverage %:", r.overall_coverage.toFixed(2) + "%", [60,60,60]);
+    metricRow("LLM Quality Score:", r.overall_quality.toFixed(3) + " / 5", [60,60,60]);
+    gap(6);
+
+    // 2. Section Matrix
+    heading1("2. Section-by-Section Metrics Matrix");
+    gap(2);
+
+    // Table header
+    doc.setFillColor(40,43,60);
+    doc.rect(MARGIN, y-4, usable, 8, "F");
+    doc.setFontSize(8); doc.setFont("helvetica","bold"); doc.setTextColor(200,200,220);
+    const cols = [0, 52, 75, 95, 118, 145, 172];
+    const headers = ["Section","Semantic","ROUGE-L","Coverage","Quality/5","Weighted","Grade"];
+    headers.forEach((h,i) => doc.text(h, MARGIN+cols[i]+1, y+1));
+    y += 8; doc.setTextColor(30,30,30);
+
+    r.section_scores.forEach((s, idx) => {
+      checkPage(8);
+      if (idx % 2 === 0) { doc.setFillColor(248,248,252); doc.rect(MARGIN,y-4,usable,7,"F"); }
+      doc.setFontSize(7.5); doc.setFont("helvetica","normal");
+      const gradeColor = s.weighted_score >= 75 ? [34,197,94] : s.weighted_score >= 50 ? [200,140,0] : [200,60,60];
+      const rowData = [
+        s.section.replace(" Requirements",""),
+        s.semantic_similarity.toFixed(3),
+        s.rouge_l.toFixed(3),
+        s.coverage_percent.toFixed(1)+"%",
+        s.llm_quality_score.toFixed(2),
+        s.weighted_score.toFixed(1)+"%",
+        s.weighted_score >= 75 ? "Good" : s.weighted_score >= 50 ? "OK" : "Weak"
+      ];
+      rowData.forEach((val, i) => {
+        if (i === 6) doc.setTextColor(...gradeColor);
+        else doc.setTextColor(40,40,40);
+        doc.text(String(val), MARGIN+cols[i]+1, y+1);
+      });
+      y += 7;
+    });
+    gap(8);
+
+    // 3. LLM Judge Criteria
+    heading1("3. LLM Judge Criteria Breakdown");
+    gap(2);
+
+    doc.setFillColor(40,43,60);
+    doc.rect(MARGIN, y-4, usable, 8, "F");
+    doc.setFontSize(8); doc.setFont("helvetica","bold"); doc.setTextColor(200,200,220);
+    const critCols = [0, 52, 80, 108, 136, 162];
+    ["Section","Unambiguous","Understandable","Correct","Verifiable","Avg"].forEach((h,i) =>
+      doc.text(h, MARGIN+critCols[i]+1, y+1));
+    y += 8; doc.setTextColor(30,30,30);
+
+    r.section_scores.forEach((s, idx) => {
+      checkPage(8);
+      if (idx % 2 === 0) { doc.setFillColor(248,248,252); doc.rect(MARGIN,y-4,usable,7,"F"); }
+      doc.setFontSize(7.5); doc.setFont("helvetica","normal"); doc.setTextColor(40,40,40);
+      [s.section.replace(" Requirements",""), s.unambiguous.toFixed(2),
+       s.understandable.toFixed(2), s.correct.toFixed(2),
+       s.verifiable.toFixed(2), s.llm_quality_score.toFixed(2)]
+      .forEach((val,i) => doc.text(String(val), MARGIN+critCols[i]+1, y+1));
+      y += 7;
+    });
+    gap(8);
+
+    // 4. Generated SRS
+    heading1("4. Generated SRS");
+    gap(2);
+    if (state.generated) srsSection(state.generated.sections || {});
+
+    // 5. Expert SRS
+    heading1("5. Expert SRS (Ground Truth)");
+    gap(2);
+    if (state.expert) srsSection(state.expert.sections || {});
+
+    doc.save("srs_evaluation_report.pdf");
+
+  // ── GENERATED SRS PDF ─────────────────────────────────────
+  } else if (type === "generated") {
+    if (!state.generated) { alert("Generate SRS first."); return; }
+    coverPage("Generated SRS Document", state.generated.title || "Software Requirements Specification");
+    heading1("Software Requirements Specification");
+    gap(2);
+    bodyText(`Domain: ${state.generated.domain || "web_application"}`);
+    bodyText(`Generated: ${new Date().toLocaleString()}`);
+    gap(6);
+    srsSection(state.generated.sections || {});
+    doc.save("generated_srs.pdf");
+
+  // ── EXPERT SRS PDF ────────────────────────────────────────
+  } else if (type === "expert") {
+    if (!state.expert) { alert("Load expert SRS first."); return; }
+    coverPage("Expert SRS Document", state.expert.title || "Ground Truth SRS");
+    heading1("Expert SRS — Ground Truth");
+    gap(2);
+    bodyText(`Title: ${state.expert.title || "Expert SRS"}`);
+    bodyText(`Domain: ${state.expert.domain || "web_application"}`);
+    gap(6);
+    srsSection(state.expert.sections || {});
+    doc.save("expert_srs.pdf");
+  }
+}
+
+// ── Gap 3: Multi-strategy comparison ─────────────────────────
+let compBarChartInst = null;
+let allStrategyResults = {};  // { standard: {srs, result}, cot: {srs, result}, ... }
+
+function getSelectedStrategies() {
+  return Array.from(document.querySelectorAll('input[name="strategy"]:checked'))
+    .map(c => c.value);
+}
+
+function getStrategy() {
+  const sel = getSelectedStrategies();
+  return sel.length > 0 ? sel[0] : "standard";
+}
+
+function toggleStrategyCard(strategy) {
+  // Called by checkbox onchange — just sync card visual state
+  const chk = document.getElementById(`chk-${strategy}`);
+  const card = document.getElementById(`sc-${strategy}`);
+  if (!chk || !card) return;
+  card.classList.toggle("active-strategy", chk.checked);
+}
+
+// Wire checkbox changes to update card visuals
+document.addEventListener("DOMContentLoaded", () => {
+  ["standard","cot","fewshot","role"].forEach(s => {
+    const chk = document.getElementById(`chk-${s}`);
+    if (chk) chk.addEventListener("change", () => toggleStrategyCard(s));
+  });
+});
+
+function selectAllStrategies() {
+  ["standard","cot","fewshot","role"].forEach(s => {
+    const chk = document.getElementById(`chk-${s}`);
+    const card = document.getElementById(`sc-${s}`);
+    if (chk) chk.checked = true;
+    if (card) card.classList.add("active-strategy");
+  });
+}
+
+function selectOneStrategy() {
+  ["standard","cot","fewshot","role"].forEach(s => {
+    const isStd = s === "standard";
+    const chk = document.getElementById(`chk-${s}`);
+    const card = document.getElementById(`sc-${s}`);
+    if (chk) chk.checked = isStd;
+    if (card) card.classList.toggle("active-strategy", isStd);
+  });
+}
+
+// Run all selected strategies and show comparison
+async function runStrategyComparison(description, domain, expertSRS, customWeights) {
+  const strategies = getSelectedStrategies();
+  if (strategies.length === 0) {
+    showStatus("Please select at least one strategy.", "error");
+    return null;
+  }
+  if (!expertSRS || !expertSRS.sections) {
+    showStatus("Expert SRS not loaded. Please select or upload one first.", "error");
+    return null;
+  }
+
+  // Single strategy — normal flow
+  if (strategies.length === 1) {
+    const srs = await (await fetch(`${API}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, domain, strategy: strategies[0] })
+    })).json();
+    if (!srs.success) throw new Error(srs.error);
+    return { singleStrategy: strategies[0], singleSRS: srs.srs };
+  }
+
+  // Multiple strategies — run all and compare
+  document.getElementById("comparisonDiv").classList.remove("hidden");
+  allStrategyResults = {};
+
+  const STRATEGY_LABELS = {
+    standard: "📄 Standard", cot: "🧠 Chain-of-Thought",
+    fewshot: "📚 Few-Shot", role: "👨‍💼 Role Prompting"
+  };
+
+  for (const strategy of strategies) {
+    showStatus(`🔄 Running strategy: ${STRATEGY_LABELS[strategy]}...`, "info");
+
+    // Generate SRS
+    const genResp = await fetch(`${API}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, domain, strategy })
+    });
+    const genData = await genResp.json();
+    if (!genData.success) throw new Error(genData.error);
+
+    // Evaluate
+    const cmpResp = await fetch(`${API}/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        generated_srs: genData.srs,
+        expert_srs: expertSRS,
+        domain,
+        custom_weights: customWeights
+      })
+    });
+    const cmpData = await cmpResp.json();
+    if (!cmpData.success) throw new Error(cmpData.error);
+
+    allStrategyResults[strategy] = {
+      srs: genData.srs,
+      result: cmpData.result,
+      label: STRATEGY_LABELS[strategy]
+    };
+  }
+
+  renderComparisonResults(allStrategyResults);
+
+  // Return best strategy result for main matrix display
+  const best = Object.entries(allStrategyResults)
+    .sort((a,b) => b[1].result.overall_weighted_score - a[1].result.overall_weighted_score)[0];
+  return { multiStrategy: true, bestStrategy: best[0], bestSRS: best[1].srs, bestResult: best[1].result };
+}
+
+function renderComparisonResults(results) {
+  const entries = Object.entries(results);
+  const COLORS = ["rgba(108,99,255,0.8)","rgba(34,197,94,0.8)","rgba(245,158,11,0.8)","rgba(239,68,68,0.8)"];
+
+  // Find best overall
+  const bestStrategy = entries.sort((a,b) =>
+    b[1].result.overall_weighted_score - a[1].result.overall_weighted_score)[0][0];
+
+  // Summary table
+  document.getElementById("compSummaryBody").innerHTML = entries
+    .sort((a,b) => b[1].result.overall_weighted_score - a[1].result.overall_weighted_score)
+    .map(([key, data]) => {
+      const r = data.result;
+      const isBest = key === bestStrategy;
+      const score = r.overall_weighted_score;
+      const badge = score >= 75
+        ? `<span class="badge badge-green">🟢 ${score.toFixed(1)}%</span>`
+        : score >= 50
+          ? `<span class="badge badge-yellow">🟡 ${score.toFixed(1)}%</span>`
+          : `<span class="badge badge-red">🔴 ${score.toFixed(1)}%</span>`;
+      return `<tr style="${isBest ? 'background:rgba(108,99,255,0.08)' : ''}">
+        <td><strong>${data.label}</strong></td>
+        <td>${badge}</td>
+        <td>${r.overall_semantic.toFixed(3)}</td>
+        <td>${r.overall_rouge_l.toFixed(3)}</td>
+        <td>${r.overall_coverage.toFixed(1)}%</td>
+        <td>${r.overall_quality.toFixed(2)}/5</td>
+        <td>${isBest ? '🏆 Best' : ''}</td>
+      </tr>`;
+    }).join("");
+
+  // Tabs for each strategy
+  document.getElementById("compTabs").innerHTML = entries
+    .map(([key, data], i) => `
+      <div class="tab ${i===0?'active':''}" onclick="switchCompTab('${key}')" id="comptab-${key}">
+        ${data.label}
+      </div>`).join("");
+
+  // Panels for each strategy
+  document.getElementById("compPanels").innerHTML = entries.map(([key, data], i) => {
+    const r = data.result;
+    return `<div class="tab-panel ${i===0?'active':''}" id="comppanel-${key}">
+      <div style="margin:12px 0 8px;font-size:0.82rem;color:var(--muted)">
+        Section-by-section scores for <strong>${data.label}</strong>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Section</th>
+          <th>Semantic</th><th>ROUGE-L</th>
+          <th>Coverage</th><th>Quality/5</th><th>Weighted</th>
+        </tr></thead>
+        <tbody>
+          ${r.section_scores.map(s => `<tr>
+            <td><strong>${s.section}</strong></td>
+            <td>${s.semantic_similarity.toFixed(3)}</td>
+            <td>${s.rouge_l.toFixed(3)}</td>
+            <td>${s.coverage_percent.toFixed(1)}%</td>
+            <td>${s.llm_quality_score.toFixed(2)}</td>
+            <td>${s.weighted_score >= 75
+              ? `<span class="badge badge-green">🟢 ${s.weighted_score.toFixed(1)}%</span>`
+              : s.weighted_score >= 50
+                ? `<span class="badge badge-yellow">🟡 ${s.weighted_score.toFixed(1)}%</span>`
+                : `<span class="badge badge-red">🔴 ${s.weighted_score.toFixed(1)}%</span>`}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  }).join("");
+
+  // Comparison bar chart
+  if (compBarChartInst) compBarChartInst.destroy();
+  const SECTION_KEYS = ["Functional","Performance","Design","External","Security","Use Cases"];
+  const datasets = entries.map(([key, data], i) => ({
+    label: data.label,
+    data: data.result.section_scores.map(s => s.weighted_score),
+    backgroundColor: COLORS[i % COLORS.length],
+    borderRadius: 4
+  }));
+
+  compBarChartInst = new Chart(document.getElementById("compBarChart"), {
+    type: "bar",
+    data: {
+      labels: entries[0][1].result.section_scores.map(s => s.section.split(" ")[0]),
+      datasets
+    },
+    options: {
+      plugins: { legend: { labels: { color: "#e2e8f0" } } },
+      scales: {
+        y: { min:0, max:100, ticks:{ color:"#64748b" }, grid:{ color:"#2d3148" } },
+        x: { ticks:{ color:"#64748b" }, grid:{ display:false } }
+      }
+    }
+  });
+
+  document.getElementById("comparisonDiv").scrollIntoView({ behavior: "smooth" });
+}
+
+function switchCompTab(strategy) {
+  document.querySelectorAll("[id^='comptab-']").forEach(t =>
+    t.classList.toggle("active", t.id === `comptab-${strategy}`));
+  document.querySelectorAll("[id^='comppanel-']").forEach(p =>
+    p.classList.toggle("active", p.id === `comppanel-${strategy}`));
+}
+
+// ── Gap 1 & 7: Weight controls ────────────────────────────────
+const DOMAIN_DEFAULTS = {
+  web_application: { metrics: { semantic:0.30, rouge:0.20, coverage:0.25, quality:0.25 }, criteria: { unambiguous:0.25, understandable:0.30, correct:0.25, verifiable:0.20 } },
+  healthcare:      { metrics: { semantic:0.25, rouge:0.15, coverage:0.25, quality:0.35 }, criteria: { unambiguous:0.20, understandable:0.20, correct:0.25, verifiable:0.35 } },
+  fintech:         { metrics: { semantic:0.25, rouge:0.15, coverage:0.25, quality:0.35 }, criteria: { unambiguous:0.20, understandable:0.20, correct:0.25, verifiable:0.35 } },
+  embedded:        { metrics: { semantic:0.20, rouge:0.15, coverage:0.30, quality:0.35 }, criteria: { unambiguous:0.15, understandable:0.15, correct:0.30, verifiable:0.40 } }
+};
+
+function toggleWeights() {
+  document.getElementById("weightsPanel").classList.toggle("hidden");
+}
+
+function resetWeights() {
+  const domain = document.getElementById("domain").value;
+  const d = DOMAIN_DEFAULTS[domain] || DOMAIN_DEFAULTS.web_application;
+  const set = (id, val, dispId) => {
+    const el = document.getElementById(id);
+    if (el) { el.value = Math.round(val*100); document.getElementById(dispId).textContent = Math.round(val*100)+"%"; }
+  };
+  set("w-semantic", d.metrics.semantic, "wv-semantic");
+  set("w-rouge", d.metrics.rouge, "wv-rouge");
+  set("w-coverage", d.metrics.coverage, "wv-coverage");
+  set("w-quality", d.metrics.quality, "wv-quality");
+  set("w-unambiguous", d.criteria.unambiguous, "wv-unambiguous");
+  set("w-understandable", d.criteria.understandable, "wv-understandable");
+  set("w-correct", d.criteria.correct, "wv-correct");
+  set("w-verifiable", d.criteria.verifiable, "wv-verifiable");
+  updateSumStatus();
+}
+
+function updateWeightDisplay(slider, dispId) {
+  document.getElementById(dispId).textContent = slider.value + "%";
+  updateSumStatus();
+}
+
+function updateSumStatus() {
+  const mSum = ["w-semantic","w-rouge","w-coverage","w-quality"]
+    .reduce((s,id) => s + (+document.getElementById(id)?.value||0), 0);
+  const cSum = ["w-unambiguous","w-understandable","w-correct","w-verifiable"]
+    .reduce((s,id) => s + (+document.getElementById(id)?.value||0), 0);
+  const mEl = document.getElementById("metric-sum-status");
+  const cEl = document.getElementById("criteria-sum-status");
+  if (mEl) mEl.innerHTML = mSum===100 ? "✅ Sum: 100%" : `<span style='color:var(--danger)'>⚠️ Sum: ${mSum}% (must be 100%)</span>`;
+  if (cEl) cEl.innerHTML = cSum===100 ? "✅ Sum: 100%" : `<span style='color:var(--danger)'>⚠️ Sum: ${cSum}% (must be 100%)</span>`;
+}
+
+function getCustomWeights() {
+  const g = id => (+document.getElementById(id)?.value||0) / 100;
+  const mSum = ["w-semantic","w-rouge","w-coverage","w-quality"].reduce((s,id) => s + g(id)*100, 0);
+  const cSum = ["w-unambiguous","w-understandable","w-correct","w-verifiable"].reduce((s,id) => s + g(id)*100, 0);
+  if (Math.round(mSum) !== 100 || Math.round(cSum) !== 100) return null; // use domain defaults
+  return {
+    metrics:  { semantic: g("w-semantic"), rouge: g("w-rouge"), coverage: g("w-coverage"), quality: g("w-quality") },
+    criteria: { unambiguous: g("w-unambiguous"), understandable: g("w-understandable"), correct: g("w-correct"), verifiable: g("w-verifiable") }
+  };
+}
+
+// Reset weights when domain changes
+document.getElementById("domain").addEventListener("change", resetWeights);
+
+// ── Gap 4: Refinement ─────────────────────────────────────────
+let refinedData = null;
+
+async function runRefinement() {
+  if (!state.generated) { showStatus("Generate SRS first.", "error"); return; }
+
+  const sectionKey = document.getElementById("refineSectionSelect").value;
+  const feedback = document.getElementById("refineFeedback").value.trim();
+  if (!feedback) { showStatus("Please enter feedback describing what to fix.", "error"); return; }
+
+  const currentReqs = state.generated.sections?.[sectionKey] || [];
+  if (!currentReqs.length) { showStatus("No requirements found in that section.", "error"); return; }
+
+  setLoading("refineBtn", true, "Refining...");
+  showStatus(`🔄 Refining ${sectionKey.replace(/_/g," ")} based on your feedback...`, "info");
+
+  try {
+    const r = await fetch(`${API}/refine`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        section_key: sectionKey,
+        requirements: currentReqs,
+        feedback,
+        description: document.getElementById("description").value
+      })
+    });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error);
+
+    refinedData = { sectionKey, requirements: data.refined_requirements };
+
+    document.getElementById("refinedList").innerHTML =
+      data.refined_requirements.map((r,i) => `<li>${r}</li>`).join("");
+    document.getElementById("refineResult").classList.remove("hidden");
+    showStatus("✅ Refinement complete! Review and apply.", "success");
+  } catch (e) {
+    showStatus(`❌ Refinement failed: ${e.message}`, "error");
+  } finally {
+    setLoading("refineBtn", false, "🔄 Refine This Section");
+  }
+}
+
+function applyRefinement() {
+  if (!refinedData || !state.generated) return;
+  state.generated.sections[refinedData.sectionKey] = refinedData.requirements;
+  renderSRSSections(state.generated.sections, "generatedSections");
+  document.getElementById("refineResult").classList.add("hidden");
+  document.getElementById("refineFeedback").value = "";
+  showStatus("✅ Refinement applied. Run evaluation again to see improved scores.", "success");
+}
+</script>
+</body>
+</html>
